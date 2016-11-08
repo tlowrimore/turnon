@@ -1,81 +1,57 @@
-#include <RF22Datagram.h>
+#include <RHReliableDatagram.h>
+#include <RH_RF22.h>
 #include <SPI.h>
-#include <RF22.h>
 
-#define CLIENT_ADDRESS 1
-#define SERVER_ADDRESS 2
+#define TURNON_CLIENT_ADDRESS 1
+#define TURNON_SERVER_ADDRESS 2
 
-int sensorPin       = 0;
-int sqeezeThreshold = 100; // higher number == sqeeze harder
-int cycle           = 250;
-int holdMillis      = 3000;
-int heldMillis      = 0;
-bool isHolding      = false;
-bool didChange      = false;
+uint8_t buf[RH_RF22_MAX_MESSAGE_LEN];
 
-RF22Datagram rf22(SERVER_ADDRESS);
+RH_RF22 driver;
+RHReliableDatagram manager(driver, TURNON_SERVER_ADDRESS);
 
 void setup() {
-  // put your setup code here, to run once:
   Serial.begin(9600);
-  if (rf22.init()) {
-    Serial.println("RF22 init!");
-  } else {
-    Serial.println("RF22 init failed");
-  }
+  initRF22();
 }
 
 void loop() {
-  int sensorValue = analogRead(sensorPin);
+  awaitCurrentStateMessage();
+}
 
-  Serial.println(sensorValue);
+// ----------------------------------------------------------
+// Helper functions
+// ----------------------------------------------------------
 
-  // Measure Sensor and set state
-  if (sensorValue > sqeezeThreshold) {
-    heldMillis += cycle;
+// Initializes the RF22
+void initRF22() {
+  if(manager.init()) {
+    Serial.println("RF22 initialized.");   
+  } else {
+    Serial.println("Error: RF22 failed to initialize.");
+  }
+}
 
-    if (heldMillis >= holdMillis) {
-      heldMillis  = 0;
-      didChange   = true;
-      
-      if (!isHolding) {
-        isHolding = true;
-      } else {
-        isHolding = false;
+void awaitCurrentStateMessage() {
+  if (manager.available()) {
+    
+    // Wait for a message addressed to us from the client
+    uint8_t bufLen = sizeof(buf);
+    uint8_t from;
+    
+    if (manager.recvfromAck(buf, &bufLen, &from)) {
+      Serial.print("got request from : 0x");
+      Serial.print(from, HEX);
+      Serial.print(": ");
+      Serial.println((char*)buf);
+
+      uint8_t resp[] = { 1 };
+
+      // Send a reply back to the originator client
+      if (!manager.sendtoWait(resp, sizeof(resp), from)) {
+        Serial.println("sendtoWait failed");
       }
     }
-
-  } else {
-    heldMillis = 0;
   }
-
-  // State changed!
-  if (didChange) {
-
-    // Reset state change indicator
-    didChange = false;
-    bool accepted;
-
-    if (isHolding) {
-      Serial.println("Sending: ON");
-      // Send a message to rf22_server
-      uint8_t data[] = "1";
-      accepted = rf22.sendto(data, sizeof(data), CLIENT_ADDRESS);
-    } else {
-      Serial.println("Sending: OFF");
-
-      // Send a message to rf22_server
-      uint8_t data[] = "0";
-      accepted = rf22.sendto(data, sizeof(data), CLIENT_ADDRESS);
-    }
-
-    Serial.print("Message accepted: ");
-    Serial.println(accepted);
-
-    // Wait for transmission to complete.
-    rf22.waitPacketSent();
-    Serial.println("after WPS");
-  }
-  delay(cycle); // Pause for sensorValue
-
 }
+

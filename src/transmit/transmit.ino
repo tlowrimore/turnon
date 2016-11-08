@@ -7,7 +7,7 @@
 #define TURNON_SERVER_ADDRESS     2
 #define TURNON_SENSOR_PIN         0
 #define TURNON_SQUEEZE_THRESHOLD  100
-#define TURNON_CYCLE_DURATION     250
+#define TURNON_CYCLE_DURATION     500
 #define TURNON_HOLD_MILLIS        3000
 #define TURNON_ACK_TIMEOUT        2000
 #define TURNON_CHANGE_STATE       1
@@ -32,7 +32,7 @@ void loop() {
   Serial.println(sensorValue);
 
   updateCurrentState(sensorValue);
-  broadcastHoldStateIfChanged();
+  broadcastCurrentStateIfChanged();
   delay(TURNON_CYCLE_DURATION);
 }
 
@@ -52,11 +52,11 @@ void initRF22() {
 // Given the sensor value, this function computes the current state
 // of the transmitter.
 void updateCurrentState(int sensorValue) {
-  if(sensorValue >= TURNON_SQUEEZE_THRESHOLD) {
+  if(sensorValue > TURNON_SQUEEZE_THRESHOLD) {
     heldMillis += TURNON_CYCLE_DURATION;
-
+    
     if(heldMillis >= TURNON_HOLD_MILLIS) {
-      heldMillis    = 0;
+      heldMillis  = 0;
 
       // Turn on the change state bit
       currentState = currentState | TURNON_CHANGE_STATE;
@@ -66,27 +66,34 @@ void updateCurrentState(int sensorValue) {
 
       Serial.print("Current State changed to: ");
       Serial.println(currentState);
-      
-    } else {
-      heldMillis = 0;
     }
+  } else {
+    heldMillis = 0;
   }
 }
 
 // Broadcasts the hold state bit, if our state changed.
-void broadcastHoldStateIfChanged() {
+void broadcastCurrentStateIfChanged() {
 
   // if the change state bit is on... 
   if(currentState & TURNON_CHANGE_STATE) {
-
+    Serial.println("STATE CHANGED!");
     // turn off the change state bit
     currentState = currentState ^ TURNON_CHANGE_STATE;
 
     // Get the current hold state
     uint8_t holdState = getCurrentStateBitValue(TURNON_HOLD_STATE);
     uint8_t message[] = { holdState };
+
+    Serial.print("HOLD STATE: ");
+    Serial.println(holdState);
+
+    bool msgSent = manager.sendtoWait(  message, 
+                                        sizeof(message), 
+                                        TURNON_SERVER_ADDRESS);
+    Serial.println("Sent Msg!");
     
-    if(manager.sendtoWait(message, sizeof(message), TURNON_SERVER_ADDRESS)) {
+    if(msgSent) {
       
       uint8_t bufLen = sizeof(buf);
       uint8_t from;
