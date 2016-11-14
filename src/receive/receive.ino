@@ -1,57 +1,61 @@
-#include <RHReliableDatagram.h>
-#include <RH_RF22.h>
+#include <RFM69.h>
 #include <SPI.h>
 
-#define TURNON_CLIENT_ADDRESS 1
-#define TURNON_SERVER_ADDRESS 2
+#define TURNON_NETWORK_ID       69
+#define TURNON_CLIENT_ADDRESS   1
+#define TURNON_SERVER_ADDRESS   2
+#define TURNON_FREQUENCY        RF69_433MHZ
+#define TURNON_STATE_LED_PIN    9
+#define TURNON_CYCLE_DURATION   250
 
-uint8_t buf[RH_RF22_MAX_MESSAGE_LEN];
+byte currentState       = 0;
+const int LED_STATES[]  = { LOW, HIGH };
 
-RH_RF22 driver;
-RHReliableDatagram manager(driver, TURNON_SERVER_ADDRESS);
+RFM69 radio;
 
 void setup() {
-  Serial.begin(9600);
-  initRF22();
+  Serial.begin(115200);
+  pinMode(TURNON_STATE_LED_PIN, OUTPUT);
+  initRadio();
 }
 
 void loop() {
   awaitCurrentStateMessage();
+  delay(TURNON_CYCLE_DURATION);
 }
 
 // ----------------------------------------------------------
 // Helper functions
 // ----------------------------------------------------------
 
-// Initializes the RF22
-void initRF22() {
-  if(manager.init()) {
-    Serial.println("RF22 initialized.");   
-  } else {
-    Serial.println("Error: RF22 failed to initialize.");
+// Initializes the Radio
+void initRadio() {
+  bool radioInitialized = radio.initialize( TURNON_FREQUENCY, 
+                                            TURNON_SERVER_ADDRESS, 
+                                            TURNON_NETWORK_ID);
+
+  if(radioInitialized) {
+    radio.setHighPower();
   }
 }
 
 void awaitCurrentStateMessage() {
-  if (manager.available()) {
-    
-    // Wait for a message addressed to us from the client
-    uint8_t bufLen = sizeof(buf);
-    uint8_t from;
-    
-    if (manager.recvfromAck(buf, &bufLen, &from)) {
-      Serial.print("got request from : 0x");
-      Serial.print(from, HEX);
-      Serial.print(": ");
-      Serial.println((char*)buf);
+  if (radio.receiveDone()) {
+    byte state = radio.DATA[0];
+    setCurrentState(state);
 
-      uint8_t resp[] = { 1 };
-
-      // Send a reply back to the originator client
-      if (!manager.sendtoWait(resp, sizeof(resp), from)) {
-        Serial.println("sendtoWait failed");
-      }
+    if(radio.ACKRequested()) {
+      radio.sendACK();
     }
   }
+
+  radio.receiveDone();
+}
+
+void setCurrentState(byte state) {
+  currentState = state;
+  Serial.println(currentState);  
+  Serial.flush();
+  digitalWrite(TURNON_STATE_LED_PIN, LED_STATES[currentState]);
 }
 
