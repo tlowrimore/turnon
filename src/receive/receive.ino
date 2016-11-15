@@ -1,12 +1,18 @@
 #include <RFM69.h>
-#include <SPI.h>
 
 #define TURNON_NETWORK_ID       69
 #define TURNON_CLIENT_ADDRESS   1
 #define TURNON_SERVER_ADDRESS   2
 #define TURNON_FREQUENCY        RF69_433MHZ
 #define TURNON_STATE_LED_PIN    9
+#define TURNON_RELAY_RED_PIN    3
+#define TURNON_RELAY_GREEN_PIN  4
+#define TURNON_RELAY_BLUE_PIN   5
 #define TURNON_CYCLE_DURATION   250
+
+#define TURNON_STATE_RED_BIT    0
+#define TURNON_STATE_GREEN_BIT  1
+#define TURNON_STATE_BLUE_BIT   2
 
 byte currentState       = 0;
 const int LED_STATES[]  = { LOW, HIGH };
@@ -14,7 +20,6 @@ const int LED_STATES[]  = { LOW, HIGH };
 RFM69 radio;
 
 void setup() {
-  Serial.begin(115200);
   pinMode(TURNON_STATE_LED_PIN, OUTPUT);
   initRadio();
 }
@@ -53,9 +58,9 @@ void awaitCurrentStateMessage() {
 }
 
 void setCurrentState(byte state) {
-  currentState = state;
-  Serial.println(currentState);  
-  Serial.flush();
-  digitalWrite(TURNON_STATE_LED_PIN, LED_STATES[currentState]);
+  currentState    = state;
+  byte holdState  = bitRead(currentState, TURNON_STATE_GREEN_BIT);
+  
+  digitalWrite(TURNON_STATE_LED_PIN, holdState);
 }
 
