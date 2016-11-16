@@ -4,7 +4,7 @@
 #define TURNON_CLIENT_ADDRESS   1
 #define TURNON_SERVER_ADDRESS   2
 #define TURNON_FREQUENCY        RF69_433MHZ
-#define TURNON_STATE_LED_PIN    9
+#define TURNON_RX_LED_PIN       9
 #define TURNON_RELAY_RED_PIN    3
 #define TURNON_RELAY_GREEN_PIN  4
 #define TURNON_RELAY_BLUE_PIN   5
@@ -20,7 +20,11 @@ const int LED_STATES[]  = { LOW, HIGH };
 RFM69 radio;
 
 void setup() {
-  pinMode(TURNON_STATE_LED_PIN, OUTPUT);
+  pinMode(TURNON_RX_LED_PIN,      OUTPUT);
+  pinMode(TURNON_RELAY_RED_PIN,   OUTPUT);
+  pinMode(TURNON_RELAY_GREEN_PIN, OUTPUT);
+  pinMode(TURNON_RELAY_BLUE_PIN,  OUTPUT);
+  
   initRadio();
 }
 
@@ -44,23 +48,41 @@ void initRadio() {
   }
 }
 
+// Listens for radio transmissions from the transmitter.
 void awaitCurrentStateMessage() {
   if (radio.receiveDone()) {
-    byte state = radio.DATA[0];
-    setCurrentState(state);
+    onRxBegin();
+    
+    currentState = radio.DATA[0];
+
+    updateRelays();
 
     if(radio.ACKRequested()) {
       radio.sendACK();
     }
+
+    onRxEnd();
   }
 
   radio.receiveDone();
 }
 
-void setCurrentState(byte state) {
-  currentState    = state;
-  byte holdState  = bitRead(currentState, TURNON_STATE_GREEN_BIT);
-  
-  digitalWrite(TURNON_STATE_LED_PIN, holdState);
+// Updates the relays with the current state
+void updateRelays() {
+  digitalWrite( TURNON_RELAY_RED_PIN,
+                bitRead(currentState, TURNON_STATE_RED_BIT));
+                
+  digitalWrite( TURNON_RELAY_GREEN_PIN,
+                bitRead(currentState, TURNON_STATE_GREEN_BIT));
+                
+  digitalWrite( TURNON_RELAY_BLUE_PIN,
+                bitRead(currentState, TURNON_STATE_BLUE_BIT));
 }
 
+void onRxBegin() {
+  digitalWrite(TURNON_RX_LED_PIN, HIGH);
+}
+
+void onRxEnd() {
+  digitalWrite(TURNON_RX_LED_PIN, LOW);
+}
