@@ -36,7 +36,7 @@ bool  isCalibrating         = false;
 RFM69 radio;
 
 void setup() {
-//  Serial.begin(9600);
+  // Serial.begin(9600);
   pinMode(TURNON_TX_LED_PIN,        OUTPUT);
   pinMode(TURNON_FLOWER_RED_PIN,    OUTPUT);
   pinMode(TURNON_FLOWER_GREEN_PIN,  OUTPUT);
@@ -91,20 +91,20 @@ void runSenseMode(int sensorValue) {
 void runCalibrationMode(int sensorValue) {
 
   // Indicate we're in calibration mode
-  digitalWrite( TURNON_FLOWER_BLUE_PIN, HIGH);
+  digitalWrite(TURNON_FLOWER_BLUE_PIN, HIGH);
 
   avgIdlePressure =
     (calibrationIteration * avgIdlePressure + sensorValue) /
     (calibrationIteration + 1);
 
   int calibrationDuration = TURNON_CYCLE_DURATION * calibrationIteration;
+
   if(calibrationDuration >= TURNON_CALIBRATION_DURATION) {
+    digitalWrite(TURNON_FLOWER_BLUE_PIN, LOW);
     isCalibrating = false;
   }
 
   calibrationIteration++;
-
-  digitalWrite( TURNON_FLOWER_BLUE_PIN, LOW);
 }
 
 // Given the sensor value, this function computes the current state
