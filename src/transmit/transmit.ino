@@ -10,9 +10,12 @@
 #define TURNON_POT_RIGHT_PIN          2
 #define TURNON_POT_RANGE_SIZE         1024
 #define TURNON_TX_LED_PIN             9
+
+#define TURNON_NUMBER_OF_COLORS       3
 #define TURNON_FLOWER_RED_PIN         3
 #define TURNON_FLOWER_GREEN_PIN       4
 #define TURNON_FLOWER_BLUE_PIN        5
+
 #define TURNON_CALIBRATION_DURATION   5000
 #define TURNON_SQUEEZE_THRESHOLD      10
 #define TURNON_CYCLE_DURATION         250
@@ -25,8 +28,8 @@
 #define TURNON_STATE_BLUE_BIT     3
 
 
-int   heldMillis        = 0;
-byte  currentState      = 0;
+int   heldMillis    = 0;
+byte  currentState  = 0;
 
 // calibration variables
 int   calibrationIteration  = 0;
@@ -93,7 +96,7 @@ void runCalibrationMode(int sensorValue) {
   Serial.println("calibrating...");
   
   // Indicate we're in calibration mode
-  digitalWrite(TURNON_FLOWER_BLUE_PIN, HIGH);
+  updateCalibrationColor(false);
 
   avgIdlePressure =
     (calibrationIteration * avgIdlePressure + sensorValue) /
@@ -101,12 +104,33 @@ void runCalibrationMode(int sensorValue) {
 
   int calibrationDuration = TURNON_CYCLE_DURATION * calibrationIteration;
 
+  calibrationIteration++;
+  
   if(calibrationDuration >= TURNON_CALIBRATION_DURATION) {
-    digitalWrite(TURNON_FLOWER_BLUE_PIN, LOW);
+    updateCalibrationColor(true);
     isCalibrating = false;
   }
+}
 
-  calibrationIteration++;
+void recalibrate() {
+  isCalibrating         = true;
+  calibrationIteration  = 0;
+  avgIdlePressure       = 0;
+}
+
+void updateCalibrationColor(bool isFinished) {
+  int lastPin = ledPinAtIteration(calibrationIteration - 1);
+  int nextPin = ledPinAtIteration(calibrationIteration);
+
+  digitalWrite(lastPin, LOW);
+
+  if(!isFinished) {
+    digitalWrite(nextPin, HIGH);
+  }
+}
+
+int ledPinAtIteration(int iteration) {
+  return (iteration % TURNON_NUMBER_OF_COLORS) + TURNON_FLOWER_RED_PIN;
 }
 
 // Given the sensor value, this function computes the current state
@@ -137,9 +161,7 @@ void updateCurrentState(int sensorValue, byte colorBit) {
       }
 
       // Trigger recalibration
-      isCalibrating         = true;
-      calibrationIteration  = 0;
-      avgIdlePressure       = 0;
+      recalibrate();
     }
   } else {
     heldMillis = 0;
