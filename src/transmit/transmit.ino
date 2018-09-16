@@ -76,6 +76,7 @@ void initRadio() {
   }
 }
 
+// Represents a single cycle of collecting sensor input
 void runSenseMode(int sensorValue) {
   int   potLeftValue      = analogRead(TURNON_POT_LEFT_PIN);
   int   potRightValue     = analogRead(TURNON_POT_RIGHT_PIN);
@@ -86,18 +87,24 @@ void runSenseMode(int sensorValue) {
   broadcastCurrentStateIfChanged();
 }
 
+// Represents a single cycle of sensor calibration.
 void runCalibrationMode(int sensorValue) {
+
+  // Indicate we're in calibration mode
+  digitalWrite( TURNON_FLOWER_BLUE_PIN, HIGH);
+
   avgIdlePressure =
     (calibrationIteration * avgIdlePressure + sensorValue) /
     (calibrationIteration + 1);
 
-  calibrationDuration = TURNON_CYCLE_DURATION * calibrationIteration;
-
+  int calibrationDuration = TURNON_CYCLE_DURATION * calibrationIteration;
   if(calibrationDuration >= TURNON_CALIBRATION_DURATION) {
     isCalibrating = false;
   }
 
   calibrationIteration++;
+
+  digitalWrite( TURNON_FLOWER_BLUE_PIN, LOW);
 }
 
 // Given the sensor value, this function computes the current state
