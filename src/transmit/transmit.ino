@@ -14,7 +14,7 @@
 #define TURNON_FLOWER_GREEN_PIN       4
 #define TURNON_FLOWER_BLUE_PIN        5
 #define TURNON_CALIBRATION_DURATION   5000
-#define TURNON_SQUEEZE_THRESHOLD      20
+#define TURNON_SQUEEZE_THRESHOLD      10
 #define TURNON_CYCLE_DURATION         250
 #define TURNON_HOLD_MILLIS            3000
 #define TURNON_ACK_TIMEOUT            2000
@@ -36,7 +36,7 @@ bool  isCalibrating         = false;
 RFM69 radio;
 
 void setup() {
-  // Serial.begin(9600);
+  Serial.begin(9600);
   pinMode(TURNON_TX_LED_PIN,        OUTPUT);
   pinMode(TURNON_FLOWER_RED_PIN,    OUTPUT);
   pinMode(TURNON_FLOWER_GREEN_PIN,  OUTPUT);
@@ -50,7 +50,8 @@ void setup() {
 
 void loop() {
   int sensorValue = analogRead(TURNON_SENSOR_PIN);
-
+  Serial.println(sensorValue);
+  
   if(isCalibrating) {
     runCalibrationMode(sensorValue);
   } else {
@@ -89,7 +90,8 @@ void runSenseMode(int sensorValue) {
 
 // Represents a single cycle of sensor calibration.
 void runCalibrationMode(int sensorValue) {
-
+  Serial.println("calibrating...");
+  
   // Indicate we're in calibration mode
   digitalWrite(TURNON_FLOWER_BLUE_PIN, HIGH);
 
@@ -110,7 +112,6 @@ void runCalibrationMode(int sensorValue) {
 // Given the sensor value, this function computes the current state
 // of the transmitter.
 void updateCurrentState(int sensorValue, byte colorBit) {
-//  Serial.println(sensorValue);
 
   // We've met the squeeze threshold.
   if(sensorValue > avgIdlePressure + TURNON_SQUEEZE_THRESHOLD) {
@@ -119,7 +120,7 @@ void updateCurrentState(int sensorValue, byte colorBit) {
     // We've squeezed for a duration of at least TURNON_HOLD_MILLIS
     if(heldMillis >= TURNON_HOLD_MILLIS) {
       heldMillis  = 0;
-
+ 
       // Special case: if the color bit is 0,
       // reset the current state
       if(colorBit == 0) {
@@ -134,6 +135,11 @@ void updateCurrentState(int sensorValue, byte colorBit) {
         // Flip the color state bit
         currentState ^= bit(colorBit);
       }
+
+      // Trigger recalibration
+      isCalibrating         = true;
+      calibrationIteration  = 0;
+      avgIdlePressure       = 0;
     }
   } else {
     heldMillis = 0;
