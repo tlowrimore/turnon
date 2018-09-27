@@ -17,8 +17,9 @@
 #define TURNON_FLOWER_BLUE_PIN        5
 
 #define TURNON_CALIBRATION_DURATION   5000
-#define TURNON_SQUEEZE_THRESHOLD      10
-#define TURNON_CYCLE_DURATION         250
+#define TURNON_RECALIBRATION_DELAY    2000
+#define TURNON_SQUEEZE_THRESHOLD      4
+#define TURNON_CYCLE_DURATION         50
 #define TURNON_HOLD_MILLIS            3000
 #define TURNON_ACK_TIMEOUT            2000
 
@@ -27,6 +28,7 @@
 #define TURNON_STATE_GREEN_BIT    2
 #define TURNON_STATE_BLUE_BIT     3
 
+#define TURNON_DEBUG_MODE         true
 
 int   heldMillis    = 0;
 byte  currentState  = 0;
@@ -39,7 +41,9 @@ bool  isCalibrating         = false;
 RFM69 radio;
 
 void setup() {
-  Serial.begin(9600);
+  if(TURNON_DEBUG_MODE) {
+    Serial.begin(9600);
+  }
   pinMode(TURNON_TX_LED_PIN,        OUTPUT);
   pinMode(TURNON_FLOWER_RED_PIN,    OUTPUT);
   pinMode(TURNON_FLOWER_GREEN_PIN,  OUTPUT);
@@ -53,7 +57,7 @@ void setup() {
 
 void loop() {
   int sensorValue = analogRead(TURNON_SENSOR_PIN);
-  Serial.println(sensorValue);
+  debug(sensorValue);
   
   if(isCalibrating) {
     runCalibrationMode(sensorValue);
@@ -86,14 +90,22 @@ void runSenseMode(int sensorValue) {
   int   potRightValue     = analogRead(TURNON_POT_RIGHT_PIN);
   byte  colorBit          = potValuesToColorBit(potLeftValue, potRightValue);
 
-  updateCurrentState(sensorValue, colorBit);
+  bool didUpdate = updateCurrentState(sensorValue, colorBit);
+  
   updateFlowerColor();
   broadcastCurrentStateIfChanged();
+
+  if(didUpdate) {
+    
+    // Wait for the sensor to deload, then trigger recalibration.
+    delay(TURNON_RECALIBRATION_DELAY);
+    recalibrate();
+  }
 }
 
 // Represents a single cycle of sensor calibration.
 void runCalibrationMode(int sensorValue) {
-  Serial.println("calibrating...");
+  debug("calibrating...");
   
   // Indicate we're in calibration mode
   updateCalibrationColor(false);
@@ -107,6 +119,11 @@ void runCalibrationMode(int sensorValue) {
   calibrationIteration++;
   
   if(calibrationDuration >= TURNON_CALIBRATION_DURATION) {
+    avgIdlePressure += 2;
+    
+    debug("baseline!");
+    debug(avgIdlePressure);
+    
     updateCalibrationColor(true);
     isCalibrating = false;
   }
@@ -135,7 +152,7 @@ int ledPinAtIteration(int iteration) {
 
 // Given the sensor value, this function computes the current state
 // of the transmitter.
-void updateCurrentState(int sensorValue, byte colorBit) {
+boolean updateCurrentState(int sensorValue, byte colorBit) {
 
   // We've met the squeeze threshold.
   if(sensorValue > avgIdlePressure + TURNON_SQUEEZE_THRESHOLD) {
@@ -160,12 +177,13 @@ void updateCurrentState(int sensorValue, byte colorBit) {
         currentState ^= bit(colorBit);
       }
 
-      // Trigger recalibration
-      recalibrate();
+      return true;
     }
   } else {
     heldMillis = 0;
   }
+
+  return false;
 }
 
 // Update the flower LED colors
@@ -229,3 +247,16 @@ byte potValuesToColorBit(int potLeftValue, int potRightValue) {
 byte getColorBits() {
   return currentState >> 1;
 }
+
+void debug(String msg) {
+  if(TURNON_DEBUG_MODE) {
+    Serial.println(msg);
+  }
+}
+
+void debug(int msg) {
+  if(TURNON_DEBUG_MODE) {
+    Serial.println(msg);
+  }
+}
+
